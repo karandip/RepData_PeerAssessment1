@@ -1,25 +1,94 @@
----
-title: "Reproducible Research: Peer Assessment 1"
-output: 
-  html_document:
-    keep_md: true
----
+### Loading and preprocessing the data
+```{r}
+data <- read.csv('activity.csv')
+head(data)
+summary(data)
+```
+### What is mean total number of steps taken per day?
 
 
-## Loading and preprocessing the data
+```{r message=FALSE}
+mean_median_steps <- function(data)
+{
+        library(dplyr)
+        by_data <- group_by(data,date)
+        steps_each_day <- summarise(by_data,sum(steps,na.rm = TRUE))
+        steps_each_day
+        colnames(steps_each_day)[2]="total_steps"
+        
+        library(ggplot2)
+        print(qplot(total_steps, data=steps_each_day))
+        mean_step <- mean(steps_each_day$total_steps)
+        median_step <- median(steps_each_day$total_steps)
+        list(mean_step=mean_step,median_step=median_step)
+}
+mean_median <- mean_median_steps(data)
+```
+   
+Mean of the total of steps taken per day is **`r mean_median["mean_step"]`**  
+Median of the total of steps taken per day is **`r mean_median["median_step"]`**
 
+### What is the average daily activity pattern?
 
+```{r}
+plot_steps_interval <- function(data,facets=NA)
+{
+        avg_daily_activity <- summarise(group_by(data, interval),mean(steps,na.rm=TRUE))
+        colnames(avg_daily_activity)[2] <- "steps"
+        max_step <- max(avg_daily_activity$steps)
+        max_interval <- as.numeric(select(filter(avg_daily_activity,steps==max(steps)),
+                                          interval))
+        if(is.na(facets))
+        {
+                print(ggplot(avg_daily_activity,aes(x=interval,y=steps))
+                +geom_line(col="blue")+geom_vline(xintercept=max_interval,
+                linetype="dotted", col="red")+geom_hline(yintercept=max_step,
+                linetype="dotted",col="red"))
+        }
+        else
+        {
+                print(ggplot(avg_daily_activity,aes(x=interval,y=steps))
+                +geom_line(col="blue")+facet_grid(~day))
+        }
+        max_interval
+}
+max_interval <- plot_steps_interval(data)
+```
+   
+The 5-minute interval, on average across all the days in the dataset, which contains the maximum number of steps is **`r max_interval`**
 
-## What is mean total number of steps taken per day?
+### Imputing missing values
+```{r}
+missing_indices <- is.na(data[,"steps"])
+total_row_with_NA <- sum(missing_indices)
 
+avg_daily_activity <- summarise(group_by(data, interval),mean(steps,na.rm=TRUE))
+colnames(avg_daily_activity)[2] <- "steps"
+newdata <- data
+newdata[missing_indices,"steps"]<- avg_daily_activity[match(data[missing_indices,"interval"],avg_daily_activity$interval),"steps"]
 
+mean_median <- mean_median_steps(newdata)
+max_interval <- plot_steps_interval(newdata)
+```   
+   
+The total number of rows with NA is `r total_row_with_NA`   
+   
+The missing values are replaced with mean of 5-minute interval.   
+In new data,   
+        Mean of the total of steps taken per day is **`r mean_median$mean_step`**     
+        Median of the total of steps taken per day is **`r mean_median$median_step`**   
+        The 5-minute interval, on average across all the days in the dataset, which contains the maximum number of steps is **`r max_interval`**   
 
-## What is the average daily activity pattern?
+The *mean* and *median* value of the total steps taken per day has **increased**.
+   
+### Differences in activity patterns between weekdays and weekends
 
+```{r}
+newdata$day <- as.factor(weekdays(as.Date(newdata$date)) %in% c("Sunday","Saturday"))
+levels(newdata$day) <- c("weekday","weekend")
 
-
-## Imputing missing values
-
-
-
-## Are there differences in activity patterns between weekdays and weekends?
+avg_daily_activity <- summarise(group_by(newdata, interval,day),mean(steps,na.rm=TRUE))
+colnames(avg_daily_activity)[3] <- "steps"
+print(ggplot(avg_daily_activity,aes(x=interval,y=steps))+
+              geom_line(col="blue")+facet_grid(day~.))
+```
